@@ -1,0 +1,1226 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>팀 생일파티 & 커피 주문 관리</title>
+  <!-- Tailwind CSS -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <!-- Lucide Icons -->
+  <script src="https://unpkg.com/lucide@latest"></script>
+  <!-- Canvas Confetti -->
+  <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.6.0/dist/confetti.browser.min.js"></script>
+  <!-- Supabase JS Client for Realtime Cloud Database -->
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <style>
+    @import url('https://cdn.jsdelivr.net/gh/orioncactus/pretendard/dist/web/static/pretendard.css');
+    * { font-family: 'Pretendard', sans-serif; -webkit-tap-highlight-color: transparent; }
+    .scrollbar-hide::-webkit-scrollbar { display: none; }
+    .scrollbar-hide { -ms-overflow-style: none; scrollbar-width: none; }
+  </style>
+</head>
+<body class="bg-slate-100 min-h-screen text-slate-800 pb-28">
+
+  <!-- 상단 네비게이션 헤더 -->
+  <header class="sticky top-0 z-40 bg-white/95 backdrop-blur-md border-b border-slate-200 shadow-sm">
+    <div class="max-w-md mx-auto px-4 py-3 flex items-center justify-between">
+      <div class="flex items-center gap-2">
+        <div class="w-8 h-8 rounded-full bg-[#00704A] flex items-center justify-center text-white font-black text-sm shadow-md">
+          ☕
+        </div>
+        <div>
+          <div class="flex items-center gap-1.5">
+            <h1 class="font-bold text-slate-900 leading-tight text-base">팀 생일파티 & 커피 주문</h1>
+            <span id="sync-status-indicator" class="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-bold bg-amber-100 text-amber-800">
+              <span class="w-1.5 h-1.5 rounded-full bg-amber-500 animate-pulse"></span> 로컬모드
+            </span>
+          </div>
+          <p class="text-[11px] text-slate-500">스타벅스 예술의전당점 · 파리크라상</p>
+        </div>
+      </div>
+      <div class="flex items-center gap-1">
+        <button onclick="openConfigModal()" title="팀원 실시간 클라우드 연동 설정" class="p-2 text-slate-500 hover:text-emerald-600 rounded-lg hover:bg-slate-100 transition">
+          <i data-lucide="cloud" class="w-4 h-4"></i>
+        </button>
+        <button onclick="resetAllData()" title="데이터 전체 초기화" class="p-2 text-slate-400 hover:text-red-500 rounded-lg hover:bg-slate-100 transition">
+          <i data-lucide="rotate-ccw" class="w-4 h-4"></i>
+        </button>
+      </div>
+    </div>
+
+    <!-- 2가지 시트 탭: 1. 팀 생일파티 / 2. 팀 커피 주문 -->
+    <div class="max-w-md mx-auto px-4 flex border-t border-slate-100">
+      <button id="tab-btn-birthday" onclick="switchTab('birthday')" class="flex-1 py-3 text-center text-sm font-bold border-b-2 border-pink-500 text-pink-600 flex items-center justify-center gap-1.5 transition">
+        <span>🎂</span> 팀 생일파티
+      </button>
+      <button id="tab-btn-coffee" onclick="switchTab('coffee')" class="flex-1 py-3 text-center text-sm font-semibold border-b-2 border-transparent text-slate-400 flex items-center justify-center gap-1.5 transition">
+        <span>☕</span> 팀 커피 주문
+        <span id="tab-coffee-count" class="ml-1 text-[11px] bg-emerald-100 text-emerald-800 font-bold px-1.5 py-0.5 rounded-full">0/24</span>
+      </button>
+    </div>
+  </header>
+
+  <!-- 실시간 클라우드 연결 안내 배너 (미설정 시 노출) -->
+  <div id="cloud-notice-banner" class="max-w-md mx-auto px-4 pt-3 hidden">
+    <div class="bg-amber-50 border border-amber-200 rounded-xl p-3 flex items-start justify-between gap-2 text-xs">
+      <div class="flex items-start gap-2">
+        <span class="text-base">📢</span>
+        <div>
+          <span class="font-bold text-amber-900">팀원 간 실시간 공유 모드가 꺼져있습니다.</span>
+          <p class="text-amber-700 text-[11px] mt-0.5 leading-snug">깃허브 배포 시 모든 팀원이 실시간으로 동일한 결과를 보려면 우측 상단 <b>구름(☁️) 버튼</b>을 눌러 무료 Supabase를 연결해주세요.</p>
+        </div>
+      </div>
+      <button onclick="openConfigModal()" class="shrink-0 bg-amber-600 text-white font-bold text-[10px] px-2 py-1 rounded-lg shadow hover:bg-amber-700">설정</button>
+    </div>
+  </div>
+
+  <!-- 메인 컨테이너 -->
+  <main class="max-w-md mx-auto px-4 pt-4">
+
+    <!-- ========================================== -->
+    <!-- 탭 1: 🎉 팀 생일파티 탭                        -->
+    <!-- ========================================== -->
+    <section id="section-birthday" class="space-y-4">
+      
+      <!-- 귀여운 생일 축하 히어로 배너 -->
+      <div class="bg-gradient-to-br from-pink-500 via-rose-500 to-purple-600 rounded-2xl p-5 text-white shadow-lg relative overflow-hidden">
+        <div class="absolute -right-4 -bottom-4 opacity-20 text-8xl">🎉</div>
+        <div class="relative z-10">
+          <div class="flex items-center justify-between mb-2">
+            <span class="inline-flex items-center gap-1 bg-white/20 backdrop-blur-md text-[11px] font-bold px-2.5 py-1 rounded-full uppercase tracking-wider">
+              ✨ Happy Birthday!
+            </span>
+            <button onclick="fireConfetti()" class="text-xs bg-white text-pink-600 font-bold px-3 py-1 rounded-full shadow hover:bg-pink-50 transition active:scale-95">
+              팡파레 🎊
+            </button>
+          </div>
+          <h2 id="birthday-hero-text" class="text-xl font-extrabold tracking-tight mt-1 leading-snug">
+            이번 달 생일 주인공을 선택해주세요! 🎈
+          </h2>
+          <p class="text-xs text-pink-100 mt-1 font-medium">생일 주인공은 픽업 역할 배정 시 자동으로 열외됩니다 🎁</p>
+        </div>
+      </div>
+
+      <!-- 1. 생일 주인공 선택 (클릭으로 지정) -->
+      <div class="bg-white rounded-2xl p-4 border border-slate-200/80 shadow-sm">
+        <div class="flex items-center justify-between mb-3">
+          <div class="flex items-center gap-1.5">
+            <span class="text-base">👑</span>
+            <h3 class="font-bold text-sm text-slate-800">생일자 선택 (클릭해서 넣기)</h3>
+          </div>
+          <span class="text-[11px] text-pink-500 font-medium">복수 선택 가능</span>
+        </div>
+        <div class="grid grid-cols-3 gap-2" id="birthday-select-grid">
+          <!-- 24명 생일자 선택 버튼 -->
+        </div>
+      </div>
+
+      <!-- 2. 오늘 출근 여부 체크 (당일 픽업 대상자 필터) -->
+      <div class="bg-white rounded-2xl p-4 border border-slate-200/80 shadow-sm space-y-3">
+        <div class="flex items-center justify-between">
+          <div>
+            <h3 class="font-bold text-sm text-slate-800 flex items-center gap-1.5">
+              <span>🏢</span> 오늘 출근 여부 확인
+            </h3>
+            <p class="text-[11px] text-slate-500">결근/휴가자는 픽업 역할 대상에서 제외됩니다</p>
+          </div>
+          <div class="text-right">
+            <span id="attendance-count-badge" class="text-xs font-bold text-emerald-700 bg-emerald-50 px-2.5 py-1 rounded-full">출근 24명</span>
+          </div>
+        </div>
+        <div class="grid grid-cols-3 gap-2" id="attendance-grid">
+          <!-- 출근/휴가 토글 버튼 -->
+        </div>
+      </div>
+
+      <!-- 3. 역할 배정 시트 (커피 픽업 3~4명 / 케이크 픽업 1~2명) -->
+      <div class="bg-white rounded-2xl p-4 border border-slate-200/80 shadow-sm space-y-4">
+        <div class="flex items-center justify-between border-b border-slate-100 pb-3">
+          <div>
+            <h3 class="font-bold text-slate-900 text-sm flex items-center gap-1.5">
+              <i data-lucide="users" class="w-4 h-4 text-emerald-600"></i> 픽업 역할 배정
+            </h3>
+            <p class="text-[11px] text-slate-500 mt-0.5">대용량 음료(24잔) & 케이크 픽업 분담</p>
+          </div>
+          <button onclick="randomAssignRoles()" class="bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold px-3 py-1.5 rounded-lg shadow-sm flex items-center gap-1 transition active:scale-95">
+            <i data-lucide="shuffle" class="w-3.5 h-3.5"></i> 랜덤 추첨
+          </button>
+        </div>
+
+        <!-- 커피 픽업 -->
+        <div class="bg-emerald-50/50 border border-emerald-200/60 rounded-xl p-3.5">
+          <div class="flex items-center justify-between mb-2">
+            <div class="flex items-center gap-1.5">
+              <span class="text-base">☕</span>
+              <span class="font-bold text-xs text-emerald-950">스타벅스 커피 픽업</span>
+            </div>
+            <div class="flex items-center gap-1.5">
+              <button onclick="changeRoleSlot('coffee', -1)" class="w-6 h-6 bg-white border border-emerald-300 rounded text-xs font-bold text-slate-600 flex items-center justify-center active:bg-slate-100">-</button>
+              <span id="coffee-slot-count" class="text-xs font-bold text-emerald-800 w-4 text-center">4</span>
+              <button onclick="changeRoleSlot('coffee', 1)" class="w-6 h-6 bg-white border border-emerald-300 rounded text-xs font-bold text-slate-600 flex items-center justify-center active:bg-slate-100">+</button>
+              <span class="text-[11px] text-slate-500">명</span>
+            </div>
+          </div>
+          <div id="coffee-assignees" class="grid grid-cols-2 gap-2 mt-2">
+            <!-- 커피 슬롯 -->
+          </div>
+        </div>
+
+        <!-- 케이크 픽업 -->
+        <div class="bg-amber-50/50 border border-amber-200/60 rounded-xl p-3.5">
+          <div class="flex items-center justify-between mb-2">
+            <div class="flex items-center gap-1.5">
+              <span class="text-base">🍰</span>
+              <span class="font-bold text-xs text-amber-950">파리크라상 케이크 픽업</span>
+            </div>
+            <div class="flex items-center gap-1.5">
+              <button onclick="changeRoleSlot('cake', -1)" class="w-6 h-6 bg-white border border-amber-300 rounded text-xs font-bold text-slate-600 flex items-center justify-center active:bg-slate-100">-</button>
+              <span id="cake-slot-count" class="text-xs font-bold text-amber-800 w-4 text-center">2</span>
+              <button onclick="changeRoleSlot('cake', 1)" class="w-6 h-6 bg-white border border-amber-300 rounded text-xs font-bold text-slate-600 flex items-center justify-center active:bg-slate-100">+</button>
+              <span class="text-[11px] text-slate-500">명</span>
+            </div>
+          </div>
+          <div id="cake-assignees" class="grid grid-cols-2 gap-2 mt-2">
+            <!-- 케이크 슬롯 -->
+          </div>
+        </div>
+
+        <!-- 공지 복사 버튼 -->
+        <button onclick="copyRoleNotice()" class="w-full py-2.5 bg-slate-800 hover:bg-slate-900 text-white text-xs font-bold rounded-xl flex items-center justify-center gap-1.5 transition shadow">
+          <i data-lucide="share-2" class="w-3.5 h-3.5"></i> 역할 배정 결과 메신저 공지문 복사
+        </button>
+      </div>
+
+    </section>
+
+    <!-- ========================================== -->
+    <!-- 탭 2: ☕ 팀 커피 주문 탭                        -->
+    <!-- ========================================== -->
+    <section id="section-coffee" class="space-y-4 hidden">
+
+      <!-- 카페 안내 -->
+      <div class="bg-white rounded-2xl p-3.5 border border-slate-200/80 shadow-sm flex items-center justify-between">
+        <div class="flex items-center gap-2.5">
+          <div class="w-9 h-9 rounded-xl bg-[#00704A] flex items-center justify-center text-white font-black text-sm">
+            ★
+          </div>
+          <div>
+            <div class="flex items-center gap-1.5">
+              <h2 class="font-bold text-sm text-slate-900">스타벅스 예술의전당점</h2>
+              <span class="text-[10px] bg-emerald-100 text-emerald-800 font-semibold px-1.5 py-0.5 rounded">기본</span>
+            </div>
+            <p class="text-[11px] text-slate-400">서초동 예술의 전당 건너편 지점</p>
+          </div>
+        </div>
+        <button onclick="openCustomDrinkModal()" class="text-[11px] font-semibold text-emerald-700 bg-emerald-50 hover:bg-emerald-100 px-2.5 py-1.5 rounded-lg border border-emerald-200 transition">
+          + 직접 입력
+        </button>
+      </div>
+
+      <!-- 1단계: 팀원별 투표/미투표 현황 & 본인 선택 버튼 그리드 -->
+      <div class="bg-white rounded-2xl p-4 border border-slate-200/80 shadow-sm">
+        <div class="flex items-center justify-between mb-3">
+          <div class="flex items-center gap-1.5">
+            <span class="w-5 h-5 rounded-full bg-slate-900 text-white text-xs font-bold flex items-center justify-center">1</span>
+            <h3 class="font-bold text-sm text-slate-800">본인 이름을 선택하세요</h3>
+          </div>
+          <span id="voter-progress-badge" class="text-xs font-bold text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded-full">
+            0/24 투표완료
+          </span>
+        </div>
+        
+        <!-- 24명 팀원 목록 버튼 -->
+        <div class="grid grid-cols-3 gap-2" id="member-buttons-grid">
+          <!-- JS 동적 생성 -->
+        </div>
+      </div>
+
+      <!-- 2단계: 메뉴 및 옵션 선택 카드 -->
+      <div id="drink-selector-card" class="bg-white rounded-2xl p-4 border-2 border-emerald-500/70 shadow-md transition-all">
+        <div class="flex items-center justify-between mb-3 border-b border-slate-100 pb-2.5">
+          <div class="flex items-center gap-1.5">
+            <span class="w-5 h-5 rounded-full bg-emerald-600 text-white text-xs font-bold flex items-center justify-center">2</span>
+            <h3 class="font-bold text-sm text-slate-900">
+              <span id="selected-member-display" class="text-emerald-700 font-black underline decoration-emerald-300">팀원</span>님의 음료 선택
+            </h3>
+          </div>
+          <span id="current-vote-status" class="text-[11px] text-amber-600 font-semibold bg-amber-50 px-2 py-0.5 rounded">
+            미선택
+          </span>
+        </div>
+
+        <!-- 메뉴 카테고리 탭 -->
+        <div class="flex gap-1.5 overflow-x-auto pb-2 scrollbar-hide text-xs font-semibold" id="category-tabs">
+          <button onclick="setCategory('all')" data-cat="all" class="cat-pill px-3 py-1.5 rounded-full bg-slate-900 text-white shrink-0">전체</button>
+          <button onclick="setCategory('espresso')" data-cat="espresso" class="cat-pill px-3 py-1.5 rounded-full bg-slate-100 text-slate-600 shrink-0">에스프레소</button>
+          <button onclick="setCategory('coldbrew')" data-cat="coldbrew" class="cat-pill px-3 py-1.5 rounded-full bg-slate-100 text-slate-600 shrink-0">콜드브루</button>
+          <button onclick="setCategory('frappuccino')" data-cat="frappuccino" class="cat-pill px-3 py-1.5 rounded-full bg-slate-100 text-slate-600 shrink-0">블렌디드/프라푸치노</button>
+          <button onclick="setCategory('tea')" data-cat="tea" class="cat-pill px-3 py-1.5 rounded-full bg-slate-100 text-slate-600 shrink-0">티바나</button>
+          <button onclick="setCategory('refresher')" data-cat="refresher" class="cat-pill px-3 py-1.5 rounded-full bg-slate-100 text-slate-600 shrink-0">리프레셔/기타</button>
+        </div>
+
+        <!-- 음료 리스트 카드 그리드 -->
+        <div class="grid grid-cols-2 gap-2 mt-3 max-h-56 overflow-y-auto pr-1" id="menu-items-grid">
+          <!-- 음료 카드 렌더링 -->
+        </div>
+
+        <!-- 세부 옵션 컨트롤 영역 -->
+        <div class="mt-4 pt-3 border-t border-slate-100 space-y-3 bg-slate-50/80 -mx-4 -mb-4 p-4 rounded-b-2xl">
+          <div class="flex items-center justify-between">
+            <span class="text-xs text-slate-500 font-bold">선택 메뉴:</span>
+            <span id="chosen-drink-name" class="text-sm font-extrabold text-emerald-800">카페 아메리카노</span>
+          </div>
+
+          <!-- 1) 온도 선택 (HOT / ICE) -->
+          <div class="space-y-1.5">
+            <label class="text-[11px] font-bold text-slate-600 flex items-center justify-between">
+              <span>온도 선택</span>
+              <span id="temp-guide-text" class="text-[10px] text-slate-400 font-normal"></span>
+            </label>
+            <div class="grid grid-cols-2 gap-2">
+              <button type="button" id="btn-temp-ice" onclick="selectTemp('ICE')" class="py-2.5 px-3 rounded-xl border-2 font-bold text-xs flex items-center justify-center gap-1.5 transition-all bg-blue-600 border-blue-600 text-white shadow-sm ring-2 ring-blue-300">
+                <span>🧊</span> ICED (아이스)
+              </button>
+              <button type="button" id="btn-temp-hot" onclick="selectTemp('HOT')" class="py-2.5 px-3 rounded-xl border-2 font-bold text-xs flex items-center justify-center gap-1.5 transition-all bg-white border-slate-300 text-slate-700 hover:bg-slate-50">
+                <span>♨️</span> HOT (따뜻하게)
+              </button>
+            </div>
+          </div>
+
+          <!-- 2) 원두 / 디카페인 옵션 (기본 / 디카페인 / 1/2 디카페인) -->
+          <div class="space-y-1.5">
+            <label class="text-[11px] font-bold text-slate-600">원두 / 카페인 옵션</label>
+            <div class="grid grid-cols-3 gap-2">
+              <button type="button" id="btn-decaf-none" onclick="selectDecaf('none')" class="py-2 px-1 rounded-xl border-2 text-xs font-bold transition-all bg-emerald-600 border-emerald-600 text-white shadow-sm ring-2 ring-emerald-300">
+                기본(일반)
+              </button>
+              <button type="button" id="btn-decaf-half" onclick="selectDecaf('half')" class="py-2 px-1 rounded-xl border-2 text-xs font-bold transition-all bg-white border-slate-200 text-slate-600 hover:bg-slate-50">
+                1/2 디카페인
+              </button>
+              <button type="button" id="btn-decaf-full" onclick="selectDecaf('full')" class="py-2 px-1 rounded-xl border-2 text-xs font-bold transition-all bg-white border-slate-200 text-slate-600 hover:bg-slate-50">
+                디카페인
+              </button>
+            </div>
+          </div>
+
+          <!-- 3) 기타 요청사항 (주관식 작성) -->
+          <div class="space-y-1.5">
+            <label class="text-[11px] font-bold text-slate-600">기타 요청사항 (주관식 자유 기재)</label>
+            <input type="text" id="input-custom-request" placeholder="예: 시럽 1펌프만, 샷추가, 오트밀크 변경, 얼음 적게 등" class="w-full text-xs px-3 py-2.5 rounded-xl border border-slate-200 bg-white focus:outline-none focus:border-emerald-600 focus:ring-1 focus:ring-emerald-600">
+          </div>
+
+          <!-- 투표 완료 버튼 -->
+          <button onclick="submitDrinkVote()" class="w-full py-3 bg-[#00704A] hover:bg-[#1E3932] text-white text-sm font-extrabold rounded-xl shadow flex items-center justify-center gap-2 transition active:scale-95">
+            <i data-lucide="check-circle" class="w-4 h-4"></i> 이 메뉴로 선택 완료
+          </button>
+        </div>
+      </div>
+
+      <!-- 3단계: 카페 직원 주문용 간편 취합 문구 카드 -->
+      <div class="bg-gradient-to-br from-emerald-900 to-slate-900 text-white rounded-2xl p-4 shadow-lg space-y-3">
+        <div class="flex items-center justify-between">
+          <div class="flex items-center gap-2">
+            <span class="text-lg">📋</span>
+            <h3 class="font-bold text-sm text-emerald-100">카페 직원 주문용 한눈 취합표</h3>
+          </div>
+          <button onclick="copyStaffScript()" class="text-xs bg-emerald-500 hover:bg-emerald-400 text-emerald-950 font-extrabold px-3 py-1.5 rounded-lg flex items-center gap-1 shadow transition">
+            <i data-lucide="copy" class="w-3.5 h-3.5"></i> 문구 복사
+          </button>
+        </div>
+        <p class="text-[11px] text-emerald-200/80">카운터 직원분께 말하기 편하도록 종류별로 자동 집계됩니다.</p>
+        
+        <div id="staff-order-box" class="bg-black/30 border border-emerald-500/30 rounded-xl p-3 text-xs leading-relaxed font-mono whitespace-pre-wrap max-h-48 overflow-y-auto text-emerald-50">
+          주문 내역을 취합 중입니다...
+        </div>
+
+        <div class="flex justify-between items-center pt-1 text-xs font-bold text-emerald-200">
+          <span>총 주문 잔수</span>
+          <span id="staff-total-count" class="text-base text-yellow-300">0잔</span>
+        </div>
+      </div>
+
+      <!-- 4단계: 팀원별 투표 현황 (투표완료 vs 미투표자) -->
+      <div class="bg-white rounded-2xl p-4 border border-slate-200/80 shadow-sm space-y-3">
+        <div class="flex items-center justify-between border-b border-slate-100 pb-2">
+          <h3 class="font-bold text-xs text-slate-800 flex items-center gap-1.5">
+            <i data-lucide="check" class="w-4 h-4 text-emerald-600"></i> 투표 완료 (<span id="voted-count">0</span>명)
+          </h3>
+          <span class="text-[11px] text-slate-400">누르면 수정/삭제 가능</span>
+        </div>
+        <div id="voted-list" class="space-y-1.5 max-h-56 overflow-y-auto">
+          <!-- 완료 리스트 -->
+        </div>
+
+        <!-- 미투표자 넛지 영역 -->
+        <div class="border-t border-slate-100 pt-3">
+          <div class="flex items-center justify-between mb-2">
+            <h4 class="font-bold text-xs text-rose-600 flex items-center gap-1">
+              <i data-lucide="alert-circle" class="w-3.5 h-3.5"></i> 아직 안 고른 팀원 (<span id="unvoted-count">24</span>명)
+            </h4>
+            <button onclick="copyNudgeMessage()" class="text-[11px] bg-rose-50 text-rose-600 font-bold px-2 py-1 rounded hover:bg-rose-100 transition">
+              독촉 카톡 복사
+            </button>
+          </div>
+          <div id="unvoted-chips" class="flex flex-wrap gap-1.5">
+            <!-- 미투표자 칩 -->
+          </div>
+        </div>
+      </div>
+
+    </section>
+
+  </main>
+
+  <!-- 실시간 클라우드 DB 연결 모달 (Supabase) -->
+  <div id="config-modal" class="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4 hidden">
+    <div class="bg-white rounded-2xl max-w-sm w-full p-5 space-y-3.5 shadow-2xl">
+      <div class="flex items-center justify-between border-b border-slate-100 pb-2.5">
+        <div class="flex items-center gap-1.5">
+          <span class="text-emerald-600 text-lg">☁️</span>
+          <h3 class="font-bold text-sm text-slate-900">팀원 실시간 공유 DB 설정</h3>
+        </div>
+        <button onclick="closeConfigModal()" class="text-slate-400 hover:text-slate-600 text-sm font-bold">✕</button>
+      </div>
+      <p class="text-[11px] text-slate-500 leading-relaxed">
+        깃허브(GitHub Pages)는 정적 호스팅이므로, 팀원들이 각자 스마트폰에서 투표한 내용을 <b>한 화면에 실시간으로 공유하고 저장 상태를 영구 유지</b>하려면 무료 클라우드 DB(Supabase) 정보가 필요합니다.
+      </p>
+
+      <div class="space-y-2">
+        <div>
+          <label class="text-[11px] font-bold text-slate-700">Supabase Project URL</label>
+          <input type="text" id="cfg-supa-url" placeholder="https://xyzcompany.supabase.co" class="w-full text-xs p-2 rounded-lg border border-slate-200 mt-1 font-mono focus:outline-none focus:border-emerald-600">
+        </div>
+        <div>
+          <label class="text-[11px] font-bold text-slate-700">Supabase Anon Public Key</label>
+          <input type="password" id="cfg-supa-key" placeholder="eyJhbGciOiJIUzI1NiIsIn..." class="w-full text-xs p-2 rounded-lg border border-slate-200 mt-1 font-mono focus:outline-none focus:border-emerald-600">
+        </div>
+      </div>
+
+      <div class="bg-slate-50 p-2.5 rounded-xl border border-slate-200 text-[10px] text-slate-500 space-y-1">
+        <p class="font-bold text-slate-700">💡 설정 팁:</p>
+        <p>1. <a href="https://supabase.com" target="_blank" class="text-emerald-700 underline font-bold">supabase.com</a> 무료 가입 후 프로젝트 생성</p>
+        <p>2. SQL 에디터에 <code>CREATE TABLE party_state (id text primary key, data jsonb);</code> 실행</p>
+        <p>3. Project Settings → API 에서 URL과 anon 키 복사 후 입력</p>
+      </div>
+
+      <div class="flex justify-end gap-2 pt-1">
+        <button onclick="closeConfigModal()" class="px-3 py-1.5 text-xs text-slate-500 font-bold">닫기</button>
+        <button onclick="saveCloudConfig()" class="px-3 py-1.5 text-xs bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-lg shadow">저장 & 연결</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 커스텀 메뉴 직접 입력 모달 -->
+  <div id="custom-modal" class="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4 hidden">
+    <div class="bg-white rounded-2xl max-w-sm w-full p-5 space-y-3 shadow-xl">
+      <h3 class="font-bold text-base text-slate-900">목록에 없는 메뉴 직접 입력</h3>
+      <input type="text" id="modal-custom-name" placeholder="음료명 (예: 딸기 아사이 리프레셔)" class="w-full text-xs p-2.5 rounded-lg border border-slate-200 focus:outline-none focus:border-emerald-600">
+      <div class="flex justify-end gap-2 pt-2">
+        <button onclick="closeCustomDrinkModal()" class="px-3 py-1.5 text-xs text-slate-500 font-bold">취소</button>
+        <button onclick="addCustomDrinkAndSelect()" class="px-3 py-1.5 text-xs bg-emerald-600 text-white font-bold rounded-lg">선택하기</button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    // 24명 팀원 명단 (유현국 팀장, 우종현 팀장으로 정확히 반영)
+    const TEAM_MEMBERS = [
+      "이채윤 사업부장",
+      "유현국 팀장",
+      "지민철 책임",
+      "유예은 책임",
+      "송지연 책임",
+      "정혜민 책임",
+      "임연선 책임",
+      "최진형 책임",
+      "장수현 선임",
+      "김찬미 선임",
+      "이경아 선임",
+      "임유진 선임",
+      "김수훈 선임",
+      "김수관 사원",
+      "최나림 사원",
+      "우종현 팀장",
+      "오민석 책임",
+      "임재승 선임",
+      "곽유진 선임",
+      "김현수 사원",
+      "노영지 AR",
+      "민기현 AR",
+      "배민경 AR",
+      "장현아 AR"
+    ];
+
+    // 스타벅스 예술의전당점 메뉴 리스트
+    const STARBUCKS_MENU = [
+      { id: 'm1', name: '카페 아메리카노', cat: 'espresso', temp: 'both' },
+      { id: 'm2', name: '카페 라떼', cat: 'espresso', temp: 'both' },
+      { id: 'm3', name: '바닐라 빈 라떼', cat: 'espresso', temp: 'both' },
+      { id: 'm4', name: '스타벅스 돌체 라떼', cat: 'espresso', temp: 'both' },
+      { id: 'm5', name: '카라멜 마키아또', cat: 'espresso', temp: 'both' },
+      { id: 'm6', name: '카푸치노', cat: 'espresso', temp: 'hot' },
+      { id: 'm7', name: '플랫 화이트', cat: 'espresso', temp: 'both' },
+      { id: 'm8', name: '콜드 브루', cat: 'coldbrew', temp: 'ice' },
+      { id: 'm9', name: '바닐라 크림 콜드 브루', cat: 'coldbrew', temp: 'ice' },
+      { id: 'm10', name: '돌체 콜드 브루', cat: 'coldbrew', temp: 'ice' },
+      { id: 'm11', name: '자바 칩 프라푸치노', cat: 'frappuccino', temp: 'ice' },
+      { id: 'm12', name: '제주 말차 크림 프라푸치노', cat: 'frappuccino', temp: 'ice' },
+      { id: 'm13', name: '망고 바나나 블렌디드', cat: 'frappuccino', temp: 'ice' },
+      { id: 'm14', name: '자몽 허니 블랙 티', cat: 'tea', temp: 'both' },
+      { id: 'm15', name: '유자 민트 티', cat: 'tea', temp: 'both' },
+      { id: 'm16', name: '얼 그레이 티', cat: 'tea', temp: 'both' },
+      { id: 'm17', name: '딸기 아사이 레모네이드', cat: 'refresher', temp: 'ice' },
+      { id: 'm18', name: '쿨 라임 피지오', cat: 'refresher', temp: 'ice' }
+    ];
+
+    const STORAGE_KEY = 'NEPES_PARTY_APP_V3';
+    const CFG_KEY = 'NEPES_SUPABASE_CONFIG';
+
+    // 앱 데이터 기본 상태
+    let appState = {
+      birthdays: [],
+      attendance: {},
+      roles: {
+        coffeeSlots: 4,
+        cakeSlots: 2,
+        coffeeAssignees: [],
+        cakeAssignees: []
+      },
+      votes: {}
+    };
+
+    // UI 선택 상태
+    let currentVoter = TEAM_MEMBERS[0];
+    let selectedDrink = STARBUCKS_MENU[0];
+    let selectedTemp = 'ICE';
+    let selectedDecaf = 'none'; // 'none', 'half', 'full'
+
+    // 클라우드 클라이언트
+    let supabaseClient = null;
+
+    window.addEventListener('DOMContentLoaded', async () => {
+      loadLocalState();
+      TEAM_MEMBERS.forEach(m => {
+        if (appState.attendance[m] === undefined) {
+          appState.attendance[m] = true;
+        }
+      });
+
+      renderAll();
+      lucide.createIcons();
+
+      // 클라우드 설정 확인 및 초기화
+      initCloudSync();
+    });
+
+    // 로컬 스토리지 불러오기
+    function loadLocalState() {
+      const saved = localStorage.getItem(STORAGE_KEY);
+      if (saved) {
+        try {
+          appState = JSON.parse(saved);
+          if (!appState.attendance) appState.attendance = {};
+        } catch(e) {
+          console.error("로컬 데이터 로드 실패", e);
+        }
+      }
+    }
+
+    // 상태 저장 (로컬 저장 + 클라우드 DB가 연결되어 있으면 클라우드에 자동 동기화)
+    async function saveState() {
+      // 1. 브라우저 로컬 저장
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(appState));
+      renderAll();
+
+      // 2. 클라우드 동기화 (모든 팀원 공유)
+      if (supabaseClient) {
+        try {
+          updateSyncBadge('syncing');
+          const { error } = await supabaseClient
+            .from('party_state')
+            .upsert({ id: 'latest_state', data: appState, updated_at: new Date().toISOString() });
+          
+          if (error) {
+            console.error("클라우드 저장 실패:", error);
+            updateSyncBadge('error');
+          } else {
+            updateSyncBadge('synced');
+          }
+        } catch(err) {
+          console.error("클라우드 전송 에러:", err);
+          updateSyncBadge('error');
+        }
+      }
+    }
+
+    // 클라우드 동기화 모듈 초기화
+    async function initCloudSync() {
+      const savedCfg = localStorage.getItem(CFG_KEY);
+      const banner = document.getElementById('cloud-notice-banner');
+
+      if (!savedCfg) {
+        banner.classList.remove('hidden');
+        updateSyncBadge('local');
+        return;
+      }
+
+      try {
+        const { url, key } = JSON.parse(savedCfg);
+        if (url && key && window.supabase) {
+          supabaseClient = window.supabase.createClient(url, key);
+          banner.classList.add('hidden');
+          updateSyncBadge('syncing');
+
+          // 초기 클라우드 데이터 가져오기
+          const { data, error } = await supabaseClient
+            .from('party_state')
+            .select('data')
+            .eq('id', 'latest_state')
+            .single();
+
+          if (!error && data && data.data) {
+            appState = data.data;
+            localStorage.setItem(STORAGE_KEY, JSON.stringify(appState));
+            renderAll();
+            updateSyncBadge('synced');
+          } else {
+            // DB에 데이터가 없으면 현재 데이터 최초 업로드
+            await saveState();
+          }
+
+          // 팀원 실시간 구독 (누군가 투표/수정하면 내 화면도 1초 내 자동 갱신)
+          supabaseClient
+            .channel('party_changes')
+            .on('postgres_changes', { event: '*', schema: 'public', table: 'party_state' }, payload => {
+              if (payload.new && payload.new.data) {
+                appState = payload.new.data;
+                localStorage.setItem(STORAGE_KEY, JSON.stringify(appState));
+                renderAll();
+                updateSyncBadge('synced');
+              }
+            })
+            .subscribe();
+
+        } else {
+          banner.classList.remove('hidden');
+          updateSyncBadge('local');
+        }
+      } catch(e) {
+        console.error("클라우드 초기화 실패", e);
+        banner.classList.remove('hidden');
+        updateSyncBadge('local');
+      }
+    }
+
+    function updateSyncBadge(status) {
+      const badge = document.getElementById('sync-status-indicator');
+      if (status === 'synced') {
+        badge.className = "inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-bold bg-emerald-100 text-emerald-800";
+        badge.innerHTML = `<span class="w-1.5 h-1.5 rounded-full bg-emerald-500"></span> 실시간 공유됨`;
+      } else if (status === 'syncing') {
+        badge.className = "inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-bold bg-blue-100 text-blue-800";
+        badge.innerHTML = `<span class="w-1.5 h-1.5 rounded-full bg-blue-500 animate-pulse"></span> 동기화 중...`;
+      } else if (status === 'error') {
+        badge.className = "inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-bold bg-rose-100 text-rose-800";
+        badge.innerHTML = `<span class="w-1.5 h-1.5 rounded-full bg-rose-500"></span> 전송 오류`;
+      } else {
+        badge.className = "inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-bold bg-amber-100 text-amber-800";
+        badge.innerHTML = `<span class="w-1.5 h-1.5 rounded-full bg-amber-500"></span> 로컬 모드`;
+      }
+    }
+
+    function openConfigModal() {
+      const savedCfg = localStorage.getItem(CFG_KEY);
+      if (savedCfg) {
+        try {
+          const { url, key } = JSON.parse(savedCfg);
+          document.getElementById('cfg-supa-url').value = url || '';
+          document.getElementById('cfg-supa-key').value = key || '';
+        } catch(e){}
+      }
+      document.getElementById('config-modal').classList.remove('hidden');
+    }
+
+    function closeConfigModal() {
+      document.getElementById('config-modal').classList.add('hidden');
+    }
+
+    function saveCloudConfig() {
+      const url = document.getElementById('cfg-supa-url').value.trim();
+      const key = document.getElementById('cfg-supa-key').value.trim();
+
+      if (!url || !key) {
+        if (confirm("클라우드 설정을 비우면 '로컬 전용 모드'로 작동합니다. 계속하시겠습니까?")) {
+          localStorage.removeItem(CFG_KEY);
+          supabaseClient = null;
+          closeConfigModal();
+          initCloudSync();
+        }
+        return;
+      }
+
+      localStorage.setItem(CFG_KEY, JSON.stringify({ url, key }));
+      closeConfigModal();
+      alert("클라우드 연결 정보가 저장되었습니다! 실시간 공유를 시작합니다.");
+      initCloudSync();
+    }
+
+    function resetAllData() {
+      if (confirm('모든 생일자, 출근 여부, 픽업 배정, 커피 주문을 초기화하시겠습니까?')) {
+        appState = {
+          birthdays: [],
+          attendance: {},
+          roles: { coffeeSlots: 4, cakeSlots: 2, coffeeAssignees: [], cakeAssignees: [] },
+          votes: {}
+        };
+        TEAM_MEMBERS.forEach(m => appState.attendance[m] = true);
+        saveState();
+      }
+    }
+
+    function switchTab(tab) {
+      const bSec = document.getElementById('section-birthday');
+      const cSec = document.getElementById('section-coffee');
+      const bBtn = document.getElementById('tab-btn-birthday');
+      const cBtn = document.getElementById('tab-btn-coffee');
+
+      if (tab === 'birthday') {
+        bSec.classList.remove('hidden');
+        cSec.classList.add('hidden');
+        bBtn.className = "flex-1 py-3 text-center text-sm font-bold border-b-2 border-pink-500 text-pink-600 flex items-center justify-center gap-1.5 transition";
+        cBtn.className = "flex-1 py-3 text-center text-sm font-semibold border-b-2 border-transparent text-slate-400 flex items-center justify-center gap-1.5 transition";
+      } else {
+        bSec.classList.add('hidden');
+        cSec.classList.remove('hidden');
+        cBtn.className = "flex-1 py-3 text-center text-sm font-bold border-b-2 border-[#00704A] text-[#00704A] flex items-center justify-center gap-1.5 transition";
+        bBtn.className = "flex-1 py-3 text-center text-sm font-semibold border-b-2 border-transparent text-slate-400 flex items-center justify-center gap-1.5 transition";
+      }
+      lucide.createIcons();
+    }
+
+    function renderAll() {
+      renderBirthdaySection();
+      renderAttendanceSection();
+      renderMemberButtons();
+      renderMenuItems();
+      renderVoterStatusCard();
+      renderOrderSummary();
+      lucide.createIcons();
+    }
+
+    // ================= 생일파티 탭 렌더링 =================
+    function renderBirthdaySection() {
+      const heroText = document.getElementById('birthday-hero-text');
+      if (appState.birthdays && appState.birthdays.length > 0) {
+        heroText.innerHTML = `오늘의 주인공은 <span class="underline decoration-yellow-300 font-black">${appState.birthdays.join(', ')}</span> 님입니다! 🎂🥳`;
+      } else {
+        heroText.innerHTML = `이번 달 생일 주인공을 선택해주세요! 🎈`;
+      }
+
+      const grid = document.getElementById('birthday-select-grid');
+      grid.innerHTML = '';
+      TEAM_MEMBERS.forEach(name => {
+        const isBday = appState.birthdays.includes(name);
+        const btn = document.createElement('button');
+        btn.className = `py-2 px-1 text-[11px] rounded-xl font-bold transition flex items-center justify-center gap-1 ${
+          isBday 
+            ? 'bg-pink-500 text-white shadow ring-2 ring-pink-300' 
+            : 'bg-slate-50 text-slate-600 hover:bg-pink-50 hover:text-pink-600 border border-slate-200'
+        }`;
+        btn.innerHTML = `${isBday ? '👑' : ''} ${name.split(' ')[0]} <span class="text-[9px] opacity-80">${name.split(' ')[1] || ''}</span>`;
+        btn.onclick = () => toggleBirthday(name);
+        grid.appendChild(btn);
+      });
+
+      document.getElementById('coffee-slot-count').innerText = appState.roles.coffeeSlots;
+      document.getElementById('cake-slot-count').innerText = appState.roles.cakeSlots;
+
+      renderRoleSlotList('coffee', appState.roles.coffeeSlots, appState.roles.coffeeAssignees, 'coffee-assignees');
+      renderRoleSlotList('cake', appState.roles.cakeSlots, appState.roles.cakeAssignees, 'cake-assignees');
+    }
+
+    function toggleBirthday(name) {
+      if (!appState.birthdays) appState.birthdays = [];
+      const idx = appState.birthdays.indexOf(name);
+      if (idx > -1) {
+        appState.birthdays.splice(idx, 1);
+      } else {
+        appState.birthdays.push(name);
+        fireConfetti();
+      }
+      saveState();
+    }
+
+    function renderAttendanceSection() {
+      const grid = document.getElementById('attendance-grid');
+      grid.innerHTML = '';
+      let presentCount = 0;
+
+      TEAM_MEMBERS.forEach(name => {
+        const isPresent = appState.attendance[name] !== false;
+        if (isPresent) presentCount++;
+
+        const btn = document.createElement('button');
+        btn.className = `py-1.5 px-2 text-[11px] rounded-xl font-medium border flex items-center justify-between transition ${
+          isPresent 
+            ? 'bg-emerald-50/70 border-emerald-300 text-emerald-900' 
+            : 'bg-slate-100 border-slate-200 text-slate-400 line-through'
+        }`;
+        btn.innerHTML = `
+          <span>${name.split(' ')[0]}</span>
+          <span class="text-[10px] font-bold ${isPresent ? 'text-emerald-700' : 'text-slate-400'}">
+            ${isPresent ? '출근' : '휴가'}
+          </span>
+        `;
+        btn.onclick = () => toggleAttendance(name);
+        grid.appendChild(btn);
+      });
+
+      document.getElementById('attendance-count-badge').innerText = `출근 ${presentCount}/24명`;
+    }
+
+    function toggleAttendance(name) {
+      appState.attendance[name] = !(appState.attendance[name] !== false);
+      if (!appState.attendance[name]) {
+        appState.roles.coffeeAssignees = appState.roles.coffeeAssignees.filter(m => m !== name);
+        appState.roles.cakeAssignees = appState.roles.cakeAssignees.filter(m => m !== name);
+      }
+      saveState();
+    }
+
+    function renderRoleSlotList(type, maxSlots, assignees, containerId) {
+      const container = document.getElementById(containerId);
+      container.innerHTML = '';
+
+      for (let i = 0; i < maxSlots; i++) {
+        const assignedName = assignees[i] || null;
+        const box = document.createElement('div');
+        box.className = "bg-white border rounded-xl p-2 flex items-center justify-between text-xs";
+
+        if (assignedName) {
+          box.innerHTML = `
+            <span class="font-bold text-slate-800">${assignedName}</span>
+            <button onclick="removeRoleAssignee('${type}', ${i})" class="text-rose-400 hover:text-rose-600 text-xs px-1">✕</button>
+          `;
+        } else {
+          let optionsHtml = `<option value="">+ 인원 직접 지정</option>`;
+          TEAM_MEMBERS.forEach(m => {
+            if (appState.attendance[m] !== false) {
+              const isBday = appState.birthdays.includes(m);
+              optionsHtml += `<option value="${m}">${isBday ? '👑(생일) ' : ''}${m}</option>`;
+            }
+          });
+
+          box.innerHTML = `
+            <select onchange="assignRoleDirect('${type}', ${i}, this.value)" class="w-full text-[11px] bg-transparent text-slate-500 focus:outline-none">
+              ${optionsHtml}
+            </select>
+          `;
+        }
+        container.appendChild(box);
+      }
+    }
+
+    function changeRoleSlot(type, delta) {
+      if (type === 'coffee') {
+        appState.roles.coffeeSlots = Math.max(1, Math.min(8, appState.roles.coffeeSlots + delta));
+      } else {
+        appState.roles.cakeSlots = Math.max(1, Math.min(4, appState.roles.cakeSlots + delta));
+      }
+      saveState();
+    }
+
+    function assignRoleDirect(type, index, name) {
+      if (!name) return;
+      if (type === 'coffee') {
+        appState.roles.coffeeAssignees[index] = name;
+      } else {
+        appState.roles.cakeAssignees[index] = name;
+      }
+      saveState();
+    }
+
+    function removeRoleAssignee(type, index) {
+      if (type === 'coffee') {
+        appState.roles.coffeeAssignees.splice(index, 1);
+      } else {
+        appState.roles.cakeAssignees.splice(index, 1);
+      }
+      saveState();
+    }
+
+    function randomAssignRoles() {
+      const candidates = TEAM_MEMBERS.filter(m => {
+        return (appState.attendance[m] !== false) && !appState.birthdays.includes(m);
+      });
+
+      const totalNeeded = appState.roles.coffeeSlots + appState.roles.cakeSlots;
+      if (candidates.length < totalNeeded) {
+        alert(`추첨 가능한 출근 팀원 수가 부족합니다. (필요: ${totalNeeded}명, 후보: ${candidates.length}명)`);
+        return;
+      }
+
+      const shuffled = [...candidates].sort(() => Math.random() - 0.5);
+      appState.roles.coffeeAssignees = shuffled.slice(0, appState.roles.coffeeSlots);
+      appState.roles.cakeAssignees = shuffled.slice(appState.roles.coffeeSlots, totalNeeded);
+
+      saveState();
+      fireConfetti();
+      alert(`🎉 픽업 역할 배정이 완료되었습니다!\n\n☕ 커피: ${appState.roles.coffeeAssignees.join(', ')}\n🍰 케이크: ${appState.roles.cakeAssignees.join(', ')}`);
+    }
+
+    function copyRoleNotice() {
+      const bdays = appState.birthdays.length > 0 ? appState.birthdays.join(', ') : '미정';
+      const coffees = appState.roles.coffeeAssignees.length > 0 ? appState.roles.coffeeAssignees.join(', ') : '미정';
+      const cakes = appState.roles.cakeAssignees.length > 0 ? appState.roles.cakeAssignees.join(', ') : '미정';
+
+      const text = `[🎉 이번 달 생일파티 역할 공지]\n\n🎂 생일 주인공: ${bdays}님\n\n☕ 스타벅스 커피 픽업 (${appState.roles.coffeeSlots}명):\n👉 ${coffees}\n\n🍰 파리크라상 케이크 픽업 (${appState.roles.cakeSlots}명):\n👉 ${cakes}\n\n도와주셔서 감사합니다! 안전하게 다녀와주세요 🥳`;
+      navigator.clipboard.writeText(text).then(() => {
+        alert('역할 공지문이 클립보드에 복사되었습니다! 메신저에 붙여넣기 하세요.');
+      });
+    }
+
+    // ================= 커피 주문 탭 렌더링 =================
+    function renderMemberButtons() {
+      const grid = document.getElementById('member-buttons-grid');
+      grid.innerHTML = '';
+
+      TEAM_MEMBERS.forEach(name => {
+        const isVoted = !!appState.votes[name];
+        const isSelected = (currentVoter === name);
+
+        const btn = document.createElement('button');
+        btn.className = `p-2.5 rounded-xl text-left border transition relative flex flex-col justify-between h-14 ${
+          isSelected 
+            ? 'border-emerald-600 bg-emerald-50 ring-2 ring-emerald-500/50' 
+            : isVoted 
+              ? 'border-emerald-200 bg-emerald-50/40 text-slate-800' 
+              : 'border-slate-200 bg-slate-50 hover:bg-slate-100 text-slate-700'
+        }`;
+        
+        const split = name.split(' ');
+        const namePart = split[0];
+        const rolePart = split[1] || '';
+
+        btn.innerHTML = `
+          <div class="flex items-center justify-between w-full">
+            <span class="font-extrabold text-xs text-slate-900">${namePart}</span>
+            ${isVoted ? '<span class="text-[10px] text-emerald-700 font-bold">✓완료</span>' : '<span class="w-1.5 h-1.5 rounded-full bg-amber-400"></span>'}
+          </div>
+          <span class="text-[10px] text-slate-400">${rolePart}</span>
+        `;
+
+        btn.onclick = () => selectVoter(name);
+        grid.appendChild(btn);
+      });
+    }
+
+    function selectVoter(name) {
+      currentVoter = name;
+      const currentVote = appState.votes[name];
+      if (currentVote) {
+        selectedTemp = currentVote.temp || 'ICE';
+        selectedDecaf = currentVote.decaf || 'none';
+        document.getElementById('input-custom-request').value = currentVote.memo || '';
+        document.getElementById('chosen-drink-name').innerText = currentVote.drink;
+      } else {
+        selectedTemp = (selectedDrink.temp === 'hot') ? 'HOT' : 'ICE';
+        selectedDecaf = 'none';
+        document.getElementById('input-custom-request').value = '';
+        document.getElementById('chosen-drink-name').innerText = selectedDrink.name;
+      }
+      renderAll();
+    }
+
+    let activeCategory = 'all';
+    function setCategory(cat) {
+      activeCategory = cat;
+      document.querySelectorAll('.cat-pill').forEach(btn => {
+        if (btn.getAttribute('data-cat') === cat) {
+          btn.className = 'cat-pill px-3 py-1.5 rounded-full bg-slate-900 text-white shrink-0';
+        } else {
+          btn.className = 'cat-pill px-3 py-1.5 rounded-full bg-slate-100 text-slate-600 shrink-0';
+        }
+      });
+      renderMenuItems();
+    }
+
+    function renderMenuItems() {
+      const grid = document.getElementById('menu-items-grid');
+      grid.innerHTML = '';
+
+      const filtered = STARBUCKS_MENU.filter(m => activeCategory === 'all' || m.cat === activeCategory);
+
+      filtered.forEach(item => {
+        const isChosen = (selectedDrink.name === item.name);
+        const card = document.createElement('div');
+        card.className = `p-2.5 rounded-xl border text-left cursor-pointer transition flex flex-col justify-between ${
+          isChosen ? 'border-emerald-600 bg-emerald-50/60 ring-1 ring-emerald-500' : 'border-slate-200 bg-white hover:border-slate-300'
+        }`;
+
+        let tempBadge = `<span class="text-[9px] px-1 py-0.5 rounded bg-slate-100 text-slate-500">HOT/ICE</span>`;
+        if (item.temp === 'ice') tempBadge = `<span class="text-[9px] px-1 py-0.5 rounded bg-blue-100 text-blue-700 font-bold">ICE 전용</span>`;
+        if (item.temp === 'hot') tempBadge = `<span class="text-[9px] px-1 py-0.5 rounded bg-red-100 text-red-700 font-bold">HOT 전용</span>`;
+
+        card.innerHTML = `
+          <div>
+            <div class="flex items-center justify-between mb-1">
+              ${tempBadge}
+            </div>
+            <div class="text-xs font-bold text-slate-800 leading-snug">${item.name}</div>
+          </div>
+          <div class="text-right mt-2">
+            <span class="text-[10px] font-bold text-emerald-700">선택</span>
+          </div>
+        `;
+
+        card.onclick = () => {
+          selectedDrink = item;
+          if (item.temp === 'ice') selectedTemp = 'ICE';
+          if (item.temp === 'hot') selectedTemp = 'HOT';
+          document.getElementById('chosen-drink-name').innerText = item.name;
+          renderVoterStatusCard();
+          renderMenuItems();
+        };
+
+        grid.appendChild(card);
+      });
+    }
+
+    function selectTemp(t) {
+      if (selectedDrink.temp === 'ice' && t === 'HOT') {
+        alert('이 메뉴는 ICED 전용 음료입니다!');
+        return;
+      }
+      if (selectedDrink.temp === 'hot' && t === 'ICE') {
+        alert('이 메뉴는 HOT 전용 음료입니다!');
+        return;
+      }
+      selectedTemp = t;
+      renderTempButtons();
+    }
+
+    function renderTempButtons() {
+      const btnIce = document.getElementById('btn-temp-ice');
+      const btnHot = document.getElementById('btn-temp-hot');
+      const guideText = document.getElementById('temp-guide-text');
+
+      if (selectedDrink.temp === 'ice') {
+        guideText.innerText = '※ ICE 전용 메뉴';
+      } else if (selectedDrink.temp === 'hot') {
+        guideText.innerText = '※ HOT 전용 메뉴';
+      } else {
+        guideText.innerText = '※ 원하시는 온도를 터치하세요';
+      }
+
+      if (selectedTemp === 'ICE') {
+        btnIce.className = "py-2.5 px-3 rounded-xl border-2 font-bold text-xs flex items-center justify-center gap-1.5 transition-all bg-blue-600 border-blue-600 text-white shadow-sm ring-2 ring-blue-300";
+        btnHot.className = "py-2.5 px-3 rounded-xl border-2 font-bold text-xs flex items-center justify-center gap-1.5 transition-all bg-white border-slate-300 text-slate-700 hover:bg-slate-50";
+      } else {
+        btnHot.className = "py-2.5 px-3 rounded-xl border-2 font-bold text-xs flex items-center justify-center gap-1.5 transition-all bg-red-600 border-red-600 text-white shadow-sm ring-2 ring-red-300";
+        btnIce.className = "py-2.5 px-3 rounded-xl border-2 font-bold text-xs flex items-center justify-center gap-1.5 transition-all bg-white border-slate-300 text-slate-700 hover:bg-slate-50";
+      }
+    }
+
+    function selectDecaf(val) {
+      selectedDecaf = val;
+      renderDecafButtons();
+    }
+
+    function renderDecafButtons() {
+      const btnNone = document.getElementById('btn-decaf-none');
+      const btnHalf = document.getElementById('btn-decaf-half');
+      const btnFull = document.getElementById('btn-decaf-full');
+
+      [btnNone, btnHalf, btnFull].forEach(b => {
+        b.className = "py-2 px-1 rounded-xl border-2 text-xs font-bold transition-all bg-white border-slate-200 text-slate-600 hover:bg-slate-50";
+      });
+
+      if (selectedDecaf === 'none') {
+        btnNone.className = "py-2 px-1 rounded-xl border-2 text-xs font-bold transition-all bg-emerald-600 border-emerald-600 text-white shadow-sm ring-2 ring-emerald-300";
+      } else if (selectedDecaf === 'half') {
+        btnHalf.className = "py-2 px-1 rounded-xl border-2 text-xs font-bold transition-all bg-emerald-600 border-emerald-600 text-white shadow-sm ring-2 ring-emerald-300";
+      } else if (selectedDecaf === 'full') {
+        btnFull.className = "py-2 px-1 rounded-xl border-2 text-xs font-bold transition-all bg-emerald-600 border-emerald-600 text-white shadow-sm ring-2 ring-emerald-300";
+      }
+    }
+
+    function renderVoterStatusCard() {
+      document.getElementById('selected-member-display').innerText = currentVoter;
+      const statusBadge = document.getElementById('current-vote-status');
+
+      if (appState.votes[currentVoter]) {
+        statusBadge.innerText = '투표 완료 (수정 모드)';
+        statusBadge.className = 'text-[11px] text-emerald-700 font-bold bg-emerald-50 px-2 py-0.5 rounded';
+      } else {
+        statusBadge.innerText = '미선택';
+        statusBadge.className = 'text-[11px] text-amber-700 font-bold bg-amber-50 px-2 py-0.5 rounded';
+      }
+
+      renderTempButtons();
+      renderDecafButtons();
+    }
+
+    function submitDrinkVote() {
+      const memo = document.getElementById('input-custom-request').value.trim();
+
+      appState.votes[currentVoter] = {
+        drink: selectedDrink.name,
+        temp: selectedTemp,
+        decaf: selectedDecaf,
+        memo: memo,
+        updatedAt: new Date().toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit' })
+      };
+
+      saveState();
+      
+      const tempKor = (selectedTemp === 'ICE') ? '아이스' : '따뜻하게';
+      let decafKor = (selectedDecaf === 'none') ? '일반' : (selectedDecaf === 'half' ? '1/2 디카페인' : '디카페인');
+      alert(`[${currentVoter}]님의 주문이 저장되었습니다!\n\n• 메뉴: ${selectedDrink.name} (${tempKor})\n• 원두: ${decafKor}${memo ? '\n• 요청사항: ' + memo : ''}`);
+    }
+
+    function renderOrderSummary() {
+      const votes = appState.votes;
+      const votedMembers = Object.keys(votes);
+      const votedCount = votedMembers.length;
+      const unvotedMembers = TEAM_MEMBERS.filter(m => !votes[m]);
+
+      document.getElementById('voted-count').innerText = votedCount;
+      document.getElementById('unvoted-count').innerText = unvotedMembers.length;
+      document.getElementById('tab-coffee-count').innerText = `${votedCount}/24`;
+      document.getElementById('voter-progress-badge').innerText = `${votedCount}/24 완료`;
+
+      if (votedCount === 0) {
+        document.getElementById('staff-order-box').innerText = "아직 투표한 팀원이 없습니다.";
+        document.getElementById('staff-total-count').innerText = "0잔";
+      } else {
+        const grouped = {};
+        const individualNotes = [];
+
+        votedMembers.forEach(m => {
+          const v = votes[m];
+          const tempKor = (v.temp === 'HOT') ? '따뜻한' : '아이스';
+          let decafKor = '';
+          if (v.decaf === 'half') decafKor = ' (1/2 디카페인)';
+          if (v.decaf === 'full') decafKor = ' (디카페인)';
+
+          const key = `${tempKor} ${v.drink}${decafKor}`;
+          if (!grouped[key]) grouped[key] = 0;
+          grouped[key]++;
+
+          if (v.memo) {
+            individualNotes.push(`  - ${m}: ${tempKor} ${v.drink} [요청사항: ${v.memo}]`);
+          }
+        });
+
+        let script = `[총 ${votedCount}잔 주문]\n\n`;
+        const orderLines = [];
+        for (const [item, count] of Object.entries(grouped)) {
+          orderLines.push(`• ${item} ${count}잔`);
+        }
+        script += orderLines.join('\n');
+
+        if (individualNotes.length > 0) {
+          script += `\n\n[개별 요청사항]\n` + individualNotes.join('\n');
+        }
+
+        document.getElementById('staff-order-box').innerText = script;
+        document.getElementById('staff-total-count').innerText = `${votedCount}잔`;
+      }
+
+      const votedContainer = document.getElementById('voted-list');
+      votedContainer.innerHTML = '';
+      if (votedCount === 0) {
+        votedContainer.innerHTML = '<div class="text-xs text-slate-400 py-2 text-center">아직 투표한 인원이 없습니다.</div>';
+      } else {
+        votedMembers.forEach(m => {
+          const v = votes[m];
+          const item = document.createElement('div');
+          item.className = "flex items-center justify-between p-2.5 rounded-xl bg-slate-50 border border-slate-200 text-xs";
+
+          const tempTag = v.temp === 'HOT' ? '<span class="text-red-600 font-bold">HOT</span>' : '<span class="text-blue-600 font-bold">ICE</span>';
+          let decafTag = '';
+          if (v.decaf === 'half') decafTag = '<span class="bg-amber-100 text-amber-800 text-[10px] px-1 rounded font-bold">1/2디카페인</span>';
+          if (v.decaf === 'full') decafTag = '<span class="bg-purple-100 text-purple-800 text-[10px] px-1 rounded font-bold">디카페인</span>';
+
+          item.innerHTML = `
+            <div>
+              <div class="font-extrabold text-slate-900">${m}</div>
+              <div class="text-[11px] text-slate-600 mt-0.5">
+                ${tempTag} ${v.drink} ${decafTag}
+                ${v.memo ? `<span class="text-emerald-700 font-medium">(${v.memo})</span>` : ''}
+              </div>
+            </div>
+            <div class="flex items-center gap-2">
+              <span class="text-[10px] text-slate-400">${v.updatedAt || ''}</span>
+              <button onclick="cancelVote('${m}')" class="text-slate-300 hover:text-red-500 text-sm font-bold">✕</button>
+            </div>
+          `;
+          votedContainer.appendChild(item);
+        });
+      }
+
+      const unvotedContainer = document.getElementById('unvoted-chips');
+      unvotedContainer.innerHTML = '';
+      unvotedMembers.forEach(m => {
+        const chip = document.createElement('span');
+        chip.className = "inline-flex items-center text-[11px] px-2.5 py-1 rounded-lg bg-rose-50 text-rose-700 font-semibold border border-rose-200 cursor-pointer";
+        chip.innerText = m.split(' ')[0];
+        chip.title = m;
+        chip.onclick = () => selectVoter(m);
+        unvotedContainer.appendChild(chip);
+      });
+    }
+
+    function cancelVote(name) {
+      if (confirm(`${name}님의 주문을 삭제하시겠습니까?`)) {
+        delete appState.votes[name];
+        saveState();
+      }
+    }
+
+    function copyStaffScript() {
+      const text = document.getElementById('staff-order-box').innerText;
+      navigator.clipboard.writeText(text).then(() => {
+        alert('카페 직원 주문용 텍스트가 클립보드에 복사되었습니다!');
+      });
+    }
+
+    function copyNudgeMessage() {
+      const unvoted = TEAM_MEMBERS.filter(m => !appState.votes[m]);
+      if (unvoted.length === 0) {
+        alert('모든 팀원이 투표를 완료했습니다! 🎉');
+        return;
+      }
+      const text = `[📢 커피 주문 투표 리마인드]\n\n아직 음료를 고르지 않은 분들은 링크에서 메뉴를 선택해주세요!\n\n👉 미선택 팀원 (${unvoted.length}명):\n${unvoted.join(', ')}\n\n빠른 주문을 위해 투표 부탁드립니다 ☕✨`;
+      navigator.clipboard.writeText(text).then(() => {
+        alert('미투표자 안내 문구가 복사되었습니다! 카톡이나 메신저에 붙여넣으세요.');
+      });
+    }
+
+    function openCustomDrinkModal() {
+      document.getElementById('custom-modal').classList.remove('hidden');
+    }
+    function closeCustomDrinkModal() {
+      document.getElementById('custom-modal').classList.add('hidden');
+      document.getElementById('modal-custom-name').value = '';
+    }
+    function addCustomDrinkAndSelect() {
+      const name = document.getElementById('modal-custom-name').value.trim();
+      if (!name) return;
+      selectedDrink = { id: 'custom_' + Date.now(), name: name, cat: 'custom', temp: 'both' };
+      document.getElementById('chosen-drink-name').innerText = name;
+      closeCustomDrinkModal();
+      renderVoterStatusCard();
+    }
+
+    function fireConfetti() {
+      confetti({
+        particleCount: 70,
+        spread: 60,
+        origin: { y: 0.6 }
+      });
+    }
+  </script>
+</body>
+</html>
